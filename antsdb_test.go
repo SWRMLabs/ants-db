@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-func makeTestingHost(t *testing.T, opts ...Option) (*AntsDB, host.Host, func()) {
+func makeTestingHost(t *testing.T, opts ...Option) (*AntsDB, host.Host) {
 	ctx, cancel := context.WithCancel(context.Background())
 	h, err := libp2p.New(
 		ctx,
@@ -68,7 +68,16 @@ func makeTestingHost(t *testing.T, opts ...Option) (*AntsDB, host.Host, func()) 
 			Offline: false,
 		},
 	)
-	opts = append(opts, WithRebroadcastDuration(time.Second))
+	opts = append(opts,
+		WithRebroadcastDuration(time.Second),
+		WithOnCloseHook(func() {
+			cancel()
+			log.Info("Stopping host")
+			h.Close()
+			log.Info("Stopping DHT")
+			idht.Close()
+		}),
+	)
 	adb, err := New(
 		ipfs,
 		psub,
@@ -80,11 +89,7 @@ func makeTestingHost(t *testing.T, opts ...Option) (*AntsDB, host.Host, func()) 
 		idht.Close()
 		t.Fatal(err)
 	}
-	return adb, h, func() {
-		cancel()
-		h.Close()
-		idht.Close()
-	}
+	return adb, h
 }
 
 func connectHosts(t *testing.T, hosts ...host.Host) {
@@ -115,9 +120,9 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestNew(t *testing.T) {
-	_, _, closeFn := makeTestingHost(t)
-	closeFn()
+func TestNewClose(t *testing.T) {
+	adb, _ := makeTestingHost(t)
+	adb.Close()
 }
 
 type dbObj struct {
@@ -145,8 +150,8 @@ func (t *dbObj) GetCreated() int64 { return t.CreatedAt }
 func (t *dbObj) GetUpdated() int64 { return t.UpdatedAt }
 
 func TestSingleHostCRUD(t *testing.T) {
-	adb, _, closeFn := makeTestingHost(t)
-	defer closeFn()
+	adb, _ := makeTestingHost(t)
+	defer adb.Close()
 
 	d := &dbObj{
 		Namespace: "StreamSpace",
@@ -204,14 +209,14 @@ func TestSingleHostCRUD(t *testing.T) {
 }
 
 func TestMultiHostCRUD(t *testing.T) {
-	adb1, h1, closeFn := makeTestingHost(t)
-	defer closeFn()
+	adb1, h1 := makeTestingHost(t)
+	defer adb1.Close()
 
-	adb2, h2, closeFn := makeTestingHost(t)
-	defer closeFn()
+	adb2, h2 := makeTestingHost(t)
+	defer adb2.Close()
 
-	adb3, h3, closeFn := makeTestingHost(t)
-	defer closeFn()
+	adb3, h3 := makeTestingHost(t)
+	defer adb3.Close()
 
 	connectHosts(t, h1, h2, h3)
 
@@ -286,13 +291,13 @@ func TestMultiHostCRUD(t *testing.T) {
 }
 
 func TestChannelValidator(t *testing.T) {
-	adb1, h1, closeFn := makeTestingHost(t, WithChannel("ant1"))
-	defer closeFn()
+	adb1, h1 := makeTestingHost(t, WithChannel("ant1"))
+	defer adb1.Close()
 
-	adb2, h2, closeFn := makeTestingHost(t, WithChannel("ant2"))
-	defer closeFn()
+	adb2, h2 := makeTestingHost(t, WithChannel("ant2"))
+	defer adb2.Close()
 
-	adb3, h3, closeFn := makeTestingHost(t, WithPeerValidator(
+	adb3, h3 := makeTestingHost(t, WithPeerValidator(
 		func(_ context.Context, p peer.ID) bool {
 			if p == h1.ID() {
 				return false
@@ -300,7 +305,7 @@ func TestChannelValidator(t *testing.T) {
 			return true
 		},
 	))
-	defer closeFn()
+	defer adb3.Close()
 
 	connectHosts(t, h1, h2, h3)
 
@@ -369,11 +374,11 @@ func TestChannelValidator(t *testing.T) {
 }
 
 func TestMultiHostList(t *testing.T) {
-	adb1, h1, closeFn := makeTestingHost(t)
-	defer closeFn()
+	adb1, h1 := makeTestingHost(t)
+	defer adb1.Close()
 
-	adb2, h2, closeFn := makeTestingHost(t)
-	defer closeFn()
+	adb2, h2 := makeTestingHost(t)
+	defer adb2.Close()
 
 	connectHosts(t, h1, h2)
 	// Create some dummies with StreamSpace namespace

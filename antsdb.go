@@ -45,6 +45,12 @@ func WithRebroadcastDuration(d time.Duration) Option {
 	}
 }
 
+func WithOnCloseHook(hook func()) Option {
+	return func(a *AntsDB) {
+		a.addOnClose(hook)
+	}
+}
+
 func defaultOpts(a *AntsDB) {
 	if len(a.namespace.String()) == 0 {
 		a.namespace = ds.NewKey(defaultRootNs)
@@ -73,6 +79,7 @@ type AntsDB struct {
 	topicName       string
 	rebcastInterval time.Duration
 	validator       func(context.Context, peer.ID) bool
+	closers         []func()
 
 	store.Store
 }
@@ -152,6 +159,28 @@ func (a *AntsDB) setup() error {
 	if err != nil {
 		log.Errorf("Failed creating new Store Err:%s", err.Error())
 		return err
+	}
+	a.addOnClose(func() {
+		log.Info("Stopping AntsDB")
+		a.cancel()
+		log.Info("Closing CRDT datastore")
+		crdt.Close()
+	})
+	return nil
+}
+
+func (a *AntsDB) addOnClose(hook func()) {
+	if a.closers == nil {
+		a.closers = []func(){hook}
+		return
+	}
+	a.closers = append(a.closers, hook)
+}
+
+func (a *AntsDB) Close() error {
+	log.Info("Closing AntsDB")
+	for _, stop := range a.closers {
+		stop()
 	}
 	return nil
 }
