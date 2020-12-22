@@ -17,3 +17,5 @@ require (
 	github.com/libp2p/go-libp2p-record v0.1.3
 	github.com/multiformats/go-multihash v0.0.13
 )
+
+replace "github.com/StreamSpace/ss-ds-store" => "../ss-ds-store"
