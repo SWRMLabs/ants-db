@@ -155,7 +155,6 @@ func (a *AntsDB) setup() error {
 	}
 	a.Store, err = dsImpl.NewDataStore(&dsImpl.DSConfig{
 		DS: crdt,
-		WithIndex: false,
 	})
 	if err != nil {
 		log.Errorf("Failed creating new Store Err:%s", err.Error())
