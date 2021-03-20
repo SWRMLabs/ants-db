@@ -1,10 +1,10 @@
-module github.com/StreamSpace/ants-db
+module github.com/SWRMLabs/ants-db
 
 go 1.14
 
 require (
-	github.com/StreamSpace/ss-ds-store v0.0.3
-	github.com/StreamSpace/ss-store v0.0.2
+	github.com/SWRMLabs/ss-ds-store v0.0.5
+	github.com/SWRMLabs/ss-store v0.0.3
 	github.com/hsanjuan/ipfs-lite v1.1.14
 	github.com/ipfs/go-datastore v0.4.5
 	github.com/ipfs/go-ds-crdt v0.1.14

@@ -11,11 +11,11 @@ code layer we can create this KV Store which can be used by apps.
 `ants-db` works like a regular Go module:
 
 ```
-> go get github.com/StreamSpace/ants-db
+> go get github.com/SWRMLabs/ants-db
 ```
 
 ## Usage
 ```
-import "github.com/StreamSpace/ants-db"
+import "github.com/SWRMLabs/ants-db"
 ```
 Check tests for examples

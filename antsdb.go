@@ -2,8 +2,8 @@ package antsdb
 
 import (
 	"context"
-	dsImpl "github.com/StreamSpace/ss-ds-store"
-	"github.com/StreamSpace/ss-store"
+	dsImpl "github.com/SWRMLabs/ss-ds-store"
+	"github.com/SWRMLabs/ss-store"
 	ds "github.com/ipfs/go-datastore"
 	crdt "github.com/ipfs/go-ds-crdt"
 	logging "github.com/ipfs/go-log/v2"
