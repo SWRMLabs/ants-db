@@ -411,7 +411,6 @@ func TestMultiHostList(t *testing.T) {
 		}
 		<-time.After(time.Second * 1)
 	}
-	<-time.After(time.Second * 5)
 	opts := store.ListOpt{
 		Page:  0,
 		Limit: 6,
@@ -419,26 +418,13 @@ func TestMultiHostList(t *testing.T) {
 	ds := &dbObj{
 		Namespace: "StreamSpace",
 	}
-	start := time.Now()
-	var (
-		list store.Items
-		err  error
-	)
-	// Allow some time for update to go through
-	for {
-		list, err = adb2.List(ds, opts)
-		if err != nil {
-			t.Fatalf(err.Error())
-		}
-		if len(list) != 5 {
-			t.Error("count mismatch during list", len(list))
-		} else {
-			break
-		}
-		if time.Since(start) > time.Second*10 {
-			t.Fatal("DBs still incosistent")
-		}
-		<-time.After(time.Second)
+
+	list, err := adb2.List(ds, opts)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	if len(list) != 5 {
+		t.Fatal("count mismatch during list", len(list))
 	}
 	for i := 0; i < len(list); i++ {
 		if list[i].GetNamespace() != "StreamSpace" {
@@ -452,7 +438,7 @@ func TestMultiHostList(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	if len(list) != 5 {
-		t.Fatalf("count mismatch during list")
+		t.Fatal("count mismatch during list", len(list))
 	}
 	for i := 0; i < len(list); i++ {
 		if list[i].GetNamespace() != "StreamSpace" {
