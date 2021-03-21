@@ -149,6 +149,12 @@ func (t *dbObj) GetCreated() int64 { return t.CreatedAt }
 
 func (t *dbObj) GetUpdated() int64 { return t.UpdatedAt }
 
+func (t *dbObj) Factory() store.SerializedItem {
+	return &dbObj{
+		Namespace: t.Namespace,
+	}
+}
+
 func TestSingleHostCRUD(t *testing.T) {
 	adb, _ := makeTestingHost(t)
 	defer adb.Close()
@@ -405,64 +411,74 @@ func TestMultiHostList(t *testing.T) {
 		}
 		<-time.After(time.Second * 1)
 	}
+	<-time.After(time.Second * 5)
 	opts := store.ListOpt{
 		Page:  0,
 		Limit: 6,
 	}
-	ds := store.Items{}
-
-	for i := 0; int64(i) < opts.Limit; i++ {
-		d := dbObj{
-			Namespace: "StreamSpace",
+	ds := &dbObj{
+		Namespace: "StreamSpace",
+	}
+	start := time.Now()
+	var (
+		list store.Items
+		err  error
+	)
+	// Allow some time for update to go through
+	for {
+		list, err = adb2.List(ds, opts)
+		if err != nil {
+			t.Fatalf(err.Error())
 		}
-		ds = append(ds, &d)
+		if len(list) != 5 {
+			t.Error("count mismatch during list", len(list))
+		} else {
+			break
+		}
+		if time.Since(start) > time.Second*10 {
+			t.Fatal("DBs still incosistent")
+		}
+		<-time.After(time.Second)
 	}
-	count, err := adb2.List(ds, opts)
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-	if count != 5 {
-		t.Fatalf("count mismatch during list")
-	}
-	for i := 0; i < count; i++ {
-		if ds[i].GetNamespace() != "StreamSpace" {
+	for i := 0; i < len(list); i++ {
+		if list[i].GetNamespace() != "StreamSpace" {
 			t.Fatalf("Namespace of the %vth element in list dosn't match", i)
 		}
 	}
 	// SortCreatedDesc
 	opts.Sort = store.SortCreatedDesc
-	count, err = adb2.List(ds, opts)
+	list, err = adb2.List(ds, opts)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if count != 5 {
+	if len(list) != 5 {
 		t.Fatalf("count mismatch during list")
 	}
-	for i := 0; i < count; i++ {
-		if ds[i].GetNamespace() != "StreamSpace" {
+	for i := 0; i < len(list); i++ {
+		if list[i].GetNamespace() != "StreamSpace" {
 			t.Fatalf("Namespace of the %vth element in list dosn't match", i)
 		}
-		if i+1 < count {
-			if ds[i].(*dbObj).CreatedAt < ds[i+1].(*dbObj).CreatedAt {
+		if i+1 < len(list) {
+			if list[i].(*dbObj).CreatedAt < list[i+1].(*dbObj).CreatedAt {
 				t.Fatalf("Order incorrect")
 			}
 		}
 	}
 	// SortCreatedDesc
 	opts.Sort = store.SortUpdatedAsc
-	count, err = adb2.List(ds, opts)
+	list, err = adb2.List(ds, opts)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if count != 5 {
+	if len(list) != 5 {
 		t.Fatalf("count mismatch during list")
 	}
-	for i := 0; i < count; i++ {
-		if ds[i].GetNamespace() != "StreamSpace" {
+	for i := 0; i < len(list); i++ {
+		if list[i].GetNamespace() != "StreamSpace" {
 			t.Fatalf("Namespace of the %vth element in list dosn't match", i)
 		}
-		if i+1 < count {
-			if ds[i].(*dbObj).UpdatedAt > ds[i+1].(*dbObj).UpdatedAt {
+		if i+1 < len(list) {
+			if list[i].(*dbObj).UpdatedAt > list[i+1].(*dbObj).UpdatedAt {
 				t.Fatalf("Order incorrect")
 			}
 		}
