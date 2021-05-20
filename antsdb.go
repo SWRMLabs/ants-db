@@ -51,6 +51,17 @@ func WithOnCloseHook(hook func()) Option {
 	}
 }
 
+type Subscriber interface {
+	Put(string)
+	Delete(string)
+}
+
+func WithSubscriber(s Subscriber) Option {
+	return func(a *AntsDB) {
+		a.subscriber = s
+	}
+}
+
 func defaultOpts(a *AntsDB) {
 	if len(a.namespace.String()) == 0 {
 		a.namespace = ds.NewKey(defaultRootNs)
@@ -76,6 +87,7 @@ type AntsDB struct {
 	pubsub          *pubsub.PubSub
 	storage         ds.Batching
 	namespace       ds.Key
+	subscriber      Subscriber
 	topicName       string
 	rebcastInterval time.Duration
 	validator       func(context.Context, peer.ID) bool
@@ -136,11 +148,15 @@ func (a *AntsDB) setup() error {
 	opts.RebroadcastInterval = a.rebcastInterval
 	opts.DAGSyncerTimeout = 2 * time.Minute
 	opts.Logger = log
-	opts.PutHook = func(k ds.Key, v []byte) {
-		log.Infof("AntsDB PUT %s", k)
-	}
-	opts.DeleteHook = func(k ds.Key) {
-		log.Infof("AntsDB DELETE %s", k)
+	if a.subscriber != nil {
+		opts.PutHook = func(k ds.Key, v []byte) {
+			log.Infof("AntsDB PUT %s", k)
+			a.subscriber.Put(k.String())
+		}
+		opts.DeleteHook = func(k ds.Key) {
+			log.Infof("AntsDB DELETE %s", k)
+			a.subscriber.Delete(k.String())
+		}
 	}
 	crdt, err := crdt.New(
 		a.storage,
