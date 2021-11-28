@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/SWRMLabs/ss-store"
+	"os"
+	"testing"
+	"time"
+
 	ipfslite "github.com/hsanjuan/ipfs-lite"
 	"github.com/ipfs/go-datastore"
 	syncds "github.com/ipfs/go-datastore/sync"
 	ipns "github.com/ipfs/go-ipns"
-	logger "github.com/ipfs/go-log/v2"
 	libp2p "github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -20,15 +22,12 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	record "github.com/libp2p/go-libp2p-record"
 	routedhost "github.com/libp2p/go-libp2p/p2p/host/routed"
-	"os"
-	"testing"
-	"time"
+	store "github.com/plexsysio/gkvstore"
 )
 
 func makeTestingHost(t *testing.T, opts ...Option) (*AntsDB, host.Host) {
 	ctx, cancel := context.WithCancel(context.Background())
 	h, err := libp2p.New(
-		ctx,
 		libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"),
 	)
 	if err != nil {
@@ -45,11 +44,13 @@ func makeTestingHost(t *testing.T, opts ...Option) (*AntsDB, host.Host) {
 		t.Fatal(err)
 	}
 	idht, err := dual.New(ctx, h,
-		dht.NamespacedValidator("pk", record.PublicKeyValidator{}),
-		dht.NamespacedValidator("ipns", ipns.Validator{KeyBook: h.Peerstore()}),
-		dht.Concurrency(10),
-		dht.RoutingTableRefreshPeriod(200*time.Millisecond),
-		dht.RoutingTableRefreshQueryTimeout(100*time.Millisecond),
+		dual.DHTOption(
+			dht.NamespacedValidator("pk", record.PublicKeyValidator{}),
+			dht.NamespacedValidator("ipns", ipns.Validator{KeyBook: h.Peerstore()}),
+			dht.Concurrency(10),
+			dht.RoutingTableRefreshPeriod(200*time.Millisecond),
+			dht.RoutingTableRefreshQueryTimeout(100*time.Millisecond),
+		),
 	)
 	if err != nil {
 		h.Close()
@@ -116,7 +117,7 @@ func connectHosts(t *testing.T, hosts ...host.Host) {
 }
 
 func TestMain(m *testing.M) {
-	logger.SetLogLevel("antsdb", "Debug")
+	// logger.SetLogLevel("antsdb", "Debug")
 	os.Exit(m.Run())
 }
 
@@ -135,7 +136,7 @@ type dbObj struct {
 
 func (t *dbObj) GetNamespace() string { return t.Namespace }
 
-func (t *dbObj) GetId() string { return t.Id }
+func (t *dbObj) GetID() string { return t.Id }
 
 func (t *dbObj) Marshal() ([]byte, error) { return json.Marshal(t) }
 
@@ -149,9 +150,9 @@ func (t *dbObj) GetCreated() int64 { return t.CreatedAt }
 
 func (t *dbObj) GetUpdated() int64 { return t.UpdatedAt }
 
-func (t *dbObj) Factory() store.SerializedItem {
-	return &dbObj{
-		Namespace: t.Namespace,
+func factory(ns string) func() store.Item {
+	return func() store.Item {
+		return &dbObj{Namespace: ns}
 	}
 }
 
@@ -160,20 +161,20 @@ func TestSingleHostCRUD(t *testing.T) {
 	defer adb.Close()
 
 	d := &dbObj{
-		Namespace: "StreamSpace",
+		Namespace: "antsObj",
 		Id:        "04791e92-0b85-11ea-8d71-362b9e155667",
 		FileName:  "MyTestFile.txt",
 	}
-	err := adb.Create(d)
+	err := adb.Create(context.TODO(), d)
 	if err != nil {
 		t.Fatal("Failed creating new object Err: ", err.Error())
 	}
 
 	d2 := &dbObj{
-		Namespace: "StreamSpace",
+		Namespace: "antsObj",
 		Id:        "04791e92-0b85-11ea-8d71-362b9e155667",
 	}
-	err = adb.Read(d2)
+	err = adb.Read(context.TODO(), d2)
 	if err != nil {
 		t.Fatal("Failed reading object Err: ", err.Error())
 	}
@@ -187,12 +188,12 @@ func TestSingleHostCRUD(t *testing.T) {
 	// Allow second for timestamps to be different
 	<-time.After(time.Second)
 
-	err = adb.Update(d)
+	err = adb.Update(context.TODO(), d)
 	if err != nil {
 		t.Fatal("Failed updating new object Err: ", err.Error())
 	}
 
-	err = adb.Read(d2)
+	err = adb.Read(context.TODO(), d2)
 	if err != nil {
 		t.Fatal("Failed reading object Err: ", err.Error())
 	}
@@ -204,11 +205,11 @@ func TestSingleHostCRUD(t *testing.T) {
 		t.Fatal("Timestamps incorrect", d2.CreatedAt, d2.UpdatedAt)
 	}
 
-	err = adb.Delete(d)
+	err = adb.Delete(context.TODO(), d)
 	if err != nil {
 		t.Fatal("Failed deleting record", err.Error())
 	}
-	err = adb.Read(d2)
+	err = adb.Read(context.TODO(), d2)
 	if err == nil {
 		t.Fatal("Able to read object after deleting", d2)
 	}
@@ -227,11 +228,11 @@ func TestMultiHostCRUD(t *testing.T) {
 	connectHosts(t, h1, h2, h3)
 
 	d := &dbObj{
-		Namespace: "StreamSpace",
+		Namespace: "antsObj",
 		Id:        "04791e92-0b85-11ea-8d71-362b9e155667",
 		FileName:  "MyTestFile.txt",
 	}
-	err := adb1.Create(d)
+	err := adb1.Create(context.TODO(), d)
 	if err != nil {
 		t.Fatal("Failed creating new object Err: ", err.Error())
 	}
@@ -240,10 +241,10 @@ func TestMultiHostCRUD(t *testing.T) {
 
 	for _, db := range []*AntsDB{adb2, adb3} {
 		d2 := &dbObj{
-			Namespace: "StreamSpace",
+			Namespace: "antsObj",
 			Id:        "04791e92-0b85-11ea-8d71-362b9e155667",
 		}
-		err = db.Read(d2)
+		err = db.Read(context.TODO(), d2)
 		if err != nil {
 			t.Fatal("Failed reading object Err: ", err.Error())
 		}
@@ -256,7 +257,7 @@ func TestMultiHostCRUD(t *testing.T) {
 	// Allow second for timestamps to be different
 	<-time.After(time.Second)
 
-	err = adb2.Update(d)
+	err = adb2.Update(context.TODO(), d)
 	if err != nil {
 		t.Fatal("Failed updating new object Err: ", err.Error())
 	}
@@ -265,10 +266,10 @@ func TestMultiHostCRUD(t *testing.T) {
 
 	for _, db := range []*AntsDB{adb1, adb3} {
 		d2 := &dbObj{
-			Namespace: "StreamSpace",
+			Namespace: "antsObj",
 			Id:        "04791e92-0b85-11ea-8d71-362b9e155667",
 		}
-		err = db.Read(d2)
+		err = db.Read(context.TODO(), d2)
 		if err != nil {
 			t.Fatal("Failed reading object Err: ", err.Error())
 		}
@@ -277,7 +278,7 @@ func TestMultiHostCRUD(t *testing.T) {
 		}
 	}
 
-	err = adb3.Delete(d)
+	err = adb3.Delete(context.TODO(), d)
 	if err != nil {
 		t.Fatal("Failed deleting record", err.Error())
 	}
@@ -286,10 +287,10 @@ func TestMultiHostCRUD(t *testing.T) {
 
 	for _, db := range []*AntsDB{adb1, adb2} {
 		d2 := &dbObj{
-			Namespace: "StreamSpace",
+			Namespace: "antsObj",
 			Id:        "04791e92-0b85-11ea-8d71-362b9e155667",
 		}
-		err = db.Read(d2)
+		err = db.Read(context.TODO(), d2)
 		if err == nil {
 			t.Fatal("Able to reading object after delete")
 		}
@@ -316,11 +317,11 @@ func TestChannelValidator(t *testing.T) {
 	connectHosts(t, h1, h2, h3)
 
 	d := &dbObj{
-		Namespace: "StreamSpace",
+		Namespace: "antsObj",
 		Id:        "04791e92-0b85-11ea-8d71-362b9e155667",
 		FileName:  "MyTestFile.txt",
 	}
-	err := adb1.Create(d)
+	err := adb1.Create(context.TODO(), d)
 	if err != nil {
 		t.Fatal("Failed creating new object Err: ", err.Error())
 	}
@@ -329,10 +330,10 @@ func TestChannelValidator(t *testing.T) {
 
 	for _, db := range []*AntsDB{adb2, adb3} {
 		d2 := &dbObj{
-			Namespace: "StreamSpace",
+			Namespace: "antsObj",
 			Id:        "04791e92-0b85-11ea-8d71-362b9e155667",
 		}
-		err = db.Read(d2)
+		err = db.Read(context.TODO(), d2)
 		if err == nil {
 			t.Fatal("Able to read object Err: ", err.Error())
 		}
@@ -342,7 +343,7 @@ func TestChannelValidator(t *testing.T) {
 	// Allow second for timestamps to be different
 	<-time.After(time.Second)
 
-	err = adb1.Update(d)
+	err = adb1.Update(context.TODO(), d)
 	if err != nil {
 		t.Fatal("Failed updating new object Err: ", err.Error())
 	}
@@ -351,16 +352,16 @@ func TestChannelValidator(t *testing.T) {
 
 	for _, db := range []*AntsDB{adb2, adb3} {
 		d2 := &dbObj{
-			Namespace: "StreamSpace",
+			Namespace: "antsObj",
 			Id:        "04791e92-0b85-11ea-8d71-362b9e155667",
 		}
-		err = db.Read(d2)
+		err = db.Read(context.TODO(), d2)
 		if err == nil {
 			t.Fatal("Able to read object Err: ", err.Error())
 		}
 	}
 
-	err = adb1.Delete(d)
+	err = adb1.Delete(context.TODO(), d)
 	if err != nil {
 		t.Fatal("Failed deleting record", err.Error())
 	}
@@ -369,10 +370,10 @@ func TestChannelValidator(t *testing.T) {
 
 	for _, db := range []*AntsDB{adb2, adb3} {
 		d2 := &dbObj{
-			Namespace: "StreamSpace",
+			Namespace: "antsObj",
 			Id:        "04791e92-0b85-11ea-8d71-362b9e155667",
 		}
-		err = db.Read(d2)
+		err = db.Read(context.TODO(), d2)
 		if err == nil {
 			t.Fatal("Able to reading object after delete")
 		}
@@ -387,13 +388,13 @@ func TestMultiHostList(t *testing.T) {
 	defer adb2.Close()
 
 	connectHosts(t, h1, h2)
-	// Create some dummies with StreamSpace namespace
+	// Create some dummies with antsObj namespace
 	for i := 0; i < 5; i++ {
 		d := dbObj{
-			Namespace: "StreamSpace",
+			Namespace: "antsObj",
 			Id:        fmt.Sprintf("%d", i),
 		}
-		err := adb1.Create(&d)
+		err := adb1.Create(context.TODO(), &d)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -405,7 +406,7 @@ func TestMultiHostList(t *testing.T) {
 			Namespace: "Other",
 			Id:        fmt.Sprintf("%d", i),
 		}
-		err := adb1.Create(&d)
+		err := adb1.Create(context.TODO(), &d)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -415,58 +416,70 @@ func TestMultiHostList(t *testing.T) {
 		Page:  0,
 		Limit: 6,
 	}
-	ds := &dbObj{
-		Namespace: "StreamSpace",
-	}
 
-	list, err := adb2.List(ds, opts)
+	list, err := adb2.List(context.TODO(), factory("antsObj"), opts)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if len(list) != 5 {
-		t.Fatal("count mismatch during list", len(list))
-	}
-	for i := 0; i < len(list); i++ {
-		if list[i].GetNamespace() != "StreamSpace" {
-			t.Fatalf("Namespace of the %vth element in list dosn't match", i)
+	count := 0
+	for it := range list {
+		if it.Err != nil {
+			t.Fatal(it.Err)
 		}
+		if it.Val.GetNamespace() != "antsObj" {
+			t.Fatalf("Namespace of the %vth element in list dosn't match", count)
+		}
+		count++
+	}
+	if count != 5 {
+		t.Fatal("count mismatch during list", count)
 	}
 	// SortCreatedDesc
 	opts.Sort = store.SortCreatedDesc
-	list, err = adb2.List(ds, opts)
+	list, err = adb2.List(context.TODO(), factory("antsObj"), opts)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if len(list) != 5 {
-		t.Fatal("count mismatch during list", len(list))
-	}
-	for i := 0; i < len(list); i++ {
-		if list[i].GetNamespace() != "StreamSpace" {
-			t.Fatalf("Namespace of the %vth element in list dosn't match", i)
+	count = 0
+	var oldTs int64 = 0
+	for it := range list {
+		if it.Err != nil {
+			t.Fatal(it.Err)
 		}
-		if i+1 < len(list) {
-			if list[i].(*dbObj).CreatedAt < list[i+1].(*dbObj).CreatedAt {
-				t.Fatalf("Order incorrect")
-			}
+		if it.Val.GetNamespace() != "antsObj" {
+			t.Fatalf("Namespace of the %vth element in list dosn't match", count)
 		}
+		if oldTs != 0 && it.Val.(*dbObj).CreatedAt > oldTs {
+			t.Fatal("Order incorrect", oldTs, it.Val.(*dbObj).CreatedAt)
+		}
+		oldTs = it.Val.(*dbObj).CreatedAt
+		count++
 	}
-	// SortCreatedDesc
+	if count != 5 {
+		t.Fatal("count mismatch during list", count)
+	}
+	// SortUpdatedAsc
 	opts.Sort = store.SortUpdatedAsc
-	list, err = adb2.List(ds, opts)
+	list, err = adb2.List(context.TODO(), factory("antsObj"), opts)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if len(list) != 5 {
-		t.Fatalf("count mismatch during list")
+	count = 0
+	oldTs = 0
+	for it := range list {
+		if it.Err != nil {
+			t.Fatal(it.Err)
+		}
+		if it.Val.GetNamespace() != "antsObj" {
+			t.Fatalf("Namespace of the %vth element in list dosn't match", count)
+		}
+		if it.Val.(*dbObj).UpdatedAt < oldTs {
+			t.Fatalf("Order incorrect")
+		}
+		oldTs = it.Val.(*dbObj).UpdatedAt
+		count++
 	}
-	for i := 0; i < len(list); i++ {
-		if list[i].GetNamespace() != "StreamSpace" {
-			t.Fatalf("Namespace of the %vth element in list dosn't match", i)
-		}
-		if i+1 < len(list) {
-			if list[i].(*dbObj).UpdatedAt > list[i+1].(*dbObj).UpdatedAt {
-				t.Fatalf("Order incorrect")
-			}
-		}
+	if count != 5 {
+		t.Fatalf("count mismatch during list")
 	}
 }

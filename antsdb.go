@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	dsImpl "github.com/SWRMLabs/ss-ds-store"
-	store "github.com/SWRMLabs/ss-store"
 	ds "github.com/ipfs/go-datastore"
 	crdt "github.com/ipfs/go-ds-crdt"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	multihash "github.com/multiformats/go-multihash"
+	store "github.com/plexsysio/gkvstore"
+	dsStore "github.com/plexsysio/gkvstore-ipfsds"
 )
 
 var (
@@ -67,12 +67,6 @@ func defaultOpts(a *AntsDB) {
 	if len(a.namespace.String()) == 0 {
 		a.namespace = ds.NewKey(defaultRootNs)
 	}
-	if a.validator == nil {
-		a.validator = func(_ context.Context, p peer.ID) bool {
-			log.Info("Got pubsub msg from ", p.Pretty())
-			return true
-		}
-	}
 	if len(a.topicName) == 0 {
 		a.topicName = defaultTopic
 	}
@@ -126,15 +120,17 @@ func (a *AntsDB) setup() error {
 		log.Infof("Updating topic name with hash %s", topicHash)
 		a.topicName = topicHash.B58String()
 	}
-	err = a.pubsub.RegisterTopicValidator(
-		a.topicName,
-		func(ctx context.Context, p peer.ID, msg *pubsub.Message) bool {
-			return a.validator(ctx, p)
-		},
-	)
-	if err != nil {
-		log.Errorf("Failed registering pubsub topic Err:%s", err.Error())
-		return err
+	if a.validator != nil {
+		err = a.pubsub.RegisterTopicValidator(
+			a.topicName,
+			func(ctx context.Context, p peer.ID, msg *pubsub.Message) bool {
+				return a.validator(ctx, p)
+			},
+		)
+		if err != nil {
+			log.Errorf("Failed registering pubsub topic Err:%s", err.Error())
+			return err
+		}
 	}
 	broadcaster, err := crdt.NewPubSubBroadcaster(
 		a.ctx,
@@ -170,13 +166,7 @@ func (a *AntsDB) setup() error {
 		log.Errorf("Failed creating crdt datastore Err:%s", err.Error())
 		return err
 	}
-	a.Store, err = dsImpl.NewDataStore(&dsImpl.DSConfig{
-		DS: crdt,
-	})
-	if err != nil {
-		log.Errorf("Failed creating new Store Err:%s", err.Error())
-		return err
-	}
+	a.Store = dsStore.New(crdt)
 	a.addOnClose(func() {
 		log.Info("Stopping AntsDB")
 		a.cancel()
