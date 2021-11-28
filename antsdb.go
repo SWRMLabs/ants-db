@@ -2,15 +2,16 @@ package antsdb
 
 import (
 	"context"
+	"time"
+
 	dsImpl "github.com/SWRMLabs/ss-ds-store"
-	"github.com/SWRMLabs/ss-store"
+	store "github.com/SWRMLabs/ss-store"
 	ds "github.com/ipfs/go-datastore"
 	crdt "github.com/ipfs/go-ds-crdt"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	multihash "github.com/multiformats/go-multihash"
-	"time"
 )
 
 var (
