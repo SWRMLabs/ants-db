@@ -1096,6 +1096,8 @@ github.com/plexsysio/gkvstore v0.0.0-20211118085618-aa2812d0ec8d h1:iw9CFXvhlNY6
 github.com/plexsysio/gkvstore v0.0.0-20211118085618-aa2812d0ec8d/go.mod h1:lH4fXSRz6RgscHeH8jMjhiPbtah8EavHaVouOe609n4=
 github.com/plexsysio/gkvstore-ipfsds v0.0.0-20211128070946-4089eab5b669 h1:5FDkSXqpqo5sQ6yK4RD9zHeNAeCbpRW1H9Y8dtoUHeY=
 github.com/plexsysio/gkvstore-ipfsds v0.0.0-20211128070946-4089eab5b669/go.mod h1:5W7TxSY++/GBlLNLdctE5qy8Qkh1qpfkcCDUXRUIkZg=
+github.com/plexsysio/ipfs-lite v1.1.22-0.20211128135214-3d31c70fbf56 h1:m/K5WuH5p+X6nbfM1JHMXZeavo5GGF6j+pfvENT6SM4=
+github.com/plexsysio/ipfs-lite v1.1.22-0.20211128135214-3d31c70fbf56/go.mod h1:zgFVXOIixMn+IbQaXtmipf2Gw6gIgxLpIfnrFQR8g6c=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/polydawn/refmt v0.0.0-20190221155625-df39d6c2d992/go.mod h1:uIp+gprXxxrWSjjklXD+mN4wed/tMfjMMmN/9+JsA9o=

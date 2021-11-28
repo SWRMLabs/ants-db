@@ -18,4 +18,4 @@ require (
 	github.com/plexsysio/gkvstore-ipfsds v0.0.0-20211128070946-4089eab5b669
 )
 
-replace github.com/hsanjuan/ipfs-lite => ../ipfs-lite
+replace github.com/hsanjuan/ipfs-lite => github.com/plexsysio/ipfs-lite v1.1.22-0.20211128135214-3d31c70fbf56
